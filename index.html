@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Otrapeli · Post Builder</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+:root {
+  --bg: #0c0c0c; --card: #161616; --border: #242424;
+  --accent: #ff6b35; --green: #2e7d32;
+  --text: #e2e2e2; --sub: #777; --label: #555;
+}
+html,body { min-height: 100%; }
+body {
+  background: var(--bg); color: var(--text);
+  font-family: -apple-system, 'Segoe UI', sans-serif;
+  padding-bottom: 40px;
+}
+
+/* HEADER */
+.header {
+  background: #111; border-bottom: 1px solid var(--border);
+  padding: 14px 18px; display: flex; align-items: center; gap: 10px;
+  position: sticky; top: 0; z-index: 200;
+}
+.header h1 { font-size: .9rem; color: var(--accent); font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+.header-sub { font-size: .7rem; color: var(--sub); margin-left: auto; }
+
+/* STEPS */
+.steps { padding: 14px; display: flex; flex-direction: column; gap: 10px; max-width: 600px; margin: 0 auto; }
+
+.step { background: var(--card); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; }
+.step.active { border-color: var(--accent); }
+.step.done   { border-color: #2e5230; }
+
+.step-head { display: flex; align-items: center; gap: 12px; padding: 14px 16px; }
+.snum {
+  width: 26px; height: 26px; border-radius: 50%;
+  background: #222; color: var(--sub);
+  display: flex; align-items: center; justify-content: center;
+  font-size: .75rem; font-weight: 700; flex-shrink: 0;
+}
+.step.active .snum { background: var(--accent); color: #fff; }
+.step.done   .snum { background: var(--green);  color: #fff; }
+.stitle { font-size: .88rem; font-weight: 600; }
+.ssub   { font-size: .72rem; color: var(--sub); margin-top: 2px; }
+.scheck { margin-left: auto; display: none; }
+.step.done .scheck { display: block; }
+
+.step-body { display: none; padding: 0 14px 14px; }
+.step.active .step-body { display: block; }
+.step.done   .step-body { display: block; }
+
+/* SEARCH */
+.search-wrap { position: relative; margin-bottom: 10px; }
+.inp-search {
+  width: 100%; background: #111; border: 1px solid #2a2a2a;
+  border-radius: 10px; color: var(--text); font-size: 1rem;
+  font-family: inherit; padding: 13px 44px 13px 14px;
+  transition: border-color .2s;
+}
+.inp-search:focus { outline: none; border-color: var(--accent); }
+.search-spinner {
+  position: absolute; right: 14px; top: 50%; transform: translateY(-50%);
+  width: 18px; height: 18px; border: 2px solid #333;
+  border-top-color: var(--accent); border-radius: 50%;
+  animation: spin .7s linear infinite; display: none;
+}
+@keyframes spin { to { transform: translateY(-50%) rotate(360deg); } }
+.search-spinner.on { display: block; }
+
+/* SUGGESTIONS DROPDOWN */
+.suggestions {
+  position: absolute; top: calc(100% + 4px); left: 0; right: 0;
+  background: #1a1a1a; border: 1px solid #2a2a2a;
+  border-radius: 10px; overflow: hidden;
+  z-index: 300; box-shadow: 0 8px 32px rgba(0,0,0,.6);
+  display: none;
+}
+.suggestions.open { display: block; }
+.sug-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; cursor: pointer;
+  border-bottom: 1px solid #222; transition: background .15s;
+}
+.sug-item:last-child { border-bottom: none; }
+.sug-item:active, .sug-item:hover { background: #222; }
+.sug-item img { width: 36px; height: 52px; object-fit: cover; border-radius: 4px; flex-shrink: 0; background: #222; }
+.sug-item-info { flex: 1; min-width: 0; }
+.sug-title { font-size: .88rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sug-meta  { font-size: .72rem; color: var(--sub); margin-top: 2px; }
+.sug-empty { padding: 14px; text-align: center; font-size: .82rem; color: var(--sub); }
+
+/* SELECTED MOVIE CARD */
+.movie-card {
+  display: flex; gap: 12px; padding: 12px;
+  background: #111; border-radius: 10px; border: 1px solid #222;
+  margin-bottom: 12px; cursor: pointer;
+}
+.movie-card:active { background: #181818; }
+.movie-card img { width: 48px; border-radius: 5px; object-fit: cover; flex-shrink: 0; }
+.mc-title { font-size: .85rem; font-weight: 600; }
+.mc-meta  { font-size: .7rem; color: var(--sub); margin-top: 2px; }
+.mc-change { font-size: .68rem; color: var(--accent); margin-top: 4px; }
+
+/* STILLS */
+.stills-grid {
+  display: grid; grid-template-columns: repeat(3,1fr); gap: 5px; margin-bottom: 10px;
+}
+.still-item {
+  position: relative; aspect-ratio: 16/9;
+  border-radius: 6px; overflow: hidden;
+  border: 2px solid transparent; cursor: pointer;
+  transition: border-color .12s;
+}
+.still-item img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.still-item.selected { border-color: #4caf50; }
+.still-item .badge {
+  position: absolute; top: 3px; left: 3px;
+  background: #4caf50; color: #fff; border-radius: 50%;
+  width: 18px; height: 18px; display: none;
+  align-items: center; justify-content: center;
+  font-size: .6rem; font-weight: 700;
+}
+.still-item.selected .badge { display: flex; }
+.sel-info { font-size: .75rem; color: var(--sub); margin-bottom: 8px; text-align: center; }
+.sel-info b { color: #4caf50; }
+
+/* CANVAS */
+#sep-canvas { width: 100%; border-radius: 6px; display: none; margin-bottom: 8px; touch-action: none; }
+.canvas-hint { font-size: .68rem; color: #444; text-align: center; margin-bottom: 10px; display: none; }
+#sep-preview { width: 100%; border-radius: 6px; display: none; margin-bottom: 10px; }
+
+/* INPUTS */
+.inp {
+  width: 100%; background: #111; border: 1px solid #2a2a2a;
+  border-radius: 10px; color: var(--text); font-size: .92rem;
+  font-family: inherit; padding: 12px 14px; transition: border-color .2s;
+}
+.inp:focus { outline: none; border-color: var(--accent); }
+textarea.inp { resize: vertical; min-height: 90px; line-height: 1.55; }
+textarea.inp.tall { min-height: 130px; }
+.gap { margin-bottom: 10px; }
+.lbl { font-size: .68rem; color: var(--label); margin-bottom: 5px; letter-spacing: .03em; text-transform: uppercase; }
+
+/* FLAGS */
+.flag-row { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 10px; }
+.fbtn {
+  background: #1a1a1a; border: 1px solid #252525; border-radius: 6px;
+  padding: 5px 7px; font-size: .9rem; cursor: pointer;
+  touch-action: manipulation; transition: border-color .12s;
+}
+.fbtn.sel { border-color: #4caf50; background: #182418; }
+
+/* BUTTONS */
+.btn {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  width: 100%; padding: 13px; border: none; border-radius: 10px;
+  font-size: .92rem; font-family: inherit; font-weight: 600;
+  cursor: pointer; transition: background .15s, opacity .2s;
+  touch-action: manipulation;
+}
+.btn:active { opacity: .75; }
+.btn-orange { background: var(--accent); color: #fff; }
+.btn-orange:disabled { background: #252525; color: #444; cursor: not-allowed; opacity: 1; }
+.btn-green  { background: var(--green); color: #fff; }
+.btn-blue   { background: #1a3550; color: #7ec8e3; }
+.btn-blue.copied { background: #1a3520; color: #81c784; }
+
+/* STATUS */
+.st { font-size: .76rem; min-height: 20px; padding: 6px 0; color: var(--sub); }
+.st.err  { color: #e57373; }
+.st.ok   { color: #81c784; }
+.st.info { color: #64b5f6; }
+
+/* HTML OUTPUT */
+#html-box {
+  background: #080808; border: 1px solid #1e1e1e; border-radius: 10px;
+  padding: 12px; font-family: 'SF Mono', Consolas, monospace;
+  font-size: .7rem; color: #a8d8a8; white-space: pre-wrap;
+  word-break: break-word; max-height: 320px; overflow-y: auto;
+  line-height: 1.6; margin-bottom: 10px;
+}
+hr.div { border: none; border-top: 1px solid var(--border); margin: 10px 0; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <span style="font-size:1.1rem">🎞</span>
+  <h1>Otrapeli</h1>
+  <div class="header-sub">Post Builder</div>
+</div>
+
+<div class="steps">
+
+  <!-- STEP 1 -->
+  <div class="step active" id="s1">
+    <div class="step-head">
+      <div class="snum">1</div>
+      <div><div class="stitle">Película</div><div class="ssub">Escribe para buscar</div></div>
+      <div class="scheck">✅</div>
+    </div>
+    <div class="step-body">
+      <div class="search-wrap">
+        <input class="inp-search" id="q" type="text" placeholder="Título de la película…" autocomplete="off" autocorrect="off" spellcheck="false">
+        <div class="search-spinner" id="spinner"></div>
+        <div class="suggestions" id="suggestions"></div>
+      </div>
+      <div class="st" id="st1"></div>
+      <div id="selected-card"></div>
+    </div>
+  </div>
+
+  <!-- STEP 2 -->
+  <div class="step" id="s2">
+    <div class="step-head">
+      <div class="snum">2</div>
+      <div><div class="stitle">Stills</div><div class="ssub">Elige 3 → separador automático</div></div>
+      <div class="scheck">✅</div>
+    </div>
+    <div class="step-body">
+      <div class="sel-info">Seleccionados: <b id="sel-count">0</b> / 3</div>
+      <div class="stills-grid" id="stills-grid"></div>
+      <label id="btn-upload-still" style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:11px;border:1px dashed #333;border-radius:10px;color:#666;font-size:.85rem;font-weight:500;cursor:pointer;margin-bottom:10px;transition:border-color .2s,color .2s;" onmouseover="this.style.borderColor='#ff6b35';this.style.color='#ff6b35'" onmouseout="this.style.borderColor='#333';this.style.color='#666'">
+        <input type="file" accept="image/*" multiple style="display:none" onchange="subirStillsLocales(this)">
+        ＋ Subir stills manualmente
+      </label>
+      <button class="btn btn-orange" id="btn-gen" onclick="generarYSubir()" disabled>Generar separador y subir ☁</button>
+      <div class="st" id="st2"></div>
+      <canvas id="sep-canvas"></canvas>
+      <div class="canvas-hint" id="canvas-hint">Arrastra para reencuadrar</div>
+      <img id="sep-preview" alt="Separador">
+    </div>
+  </div>
+
+  <!-- STEP 3 -->
+  <div class="step" id="s3">
+    <div class="step-head">
+      <div class="snum">3</div>
+      <div><div class="stitle">Texto</div><div class="ssub">Argumento · Comentario · Link</div></div>
+      <div class="scheck">✅</div>
+    </div>
+    <div class="step-body">
+      <div class="gap">
+        <div class="lbl">País / Bandera</div>
+        <div class="flag-row" id="flag-row"></div>
+        <input class="inp" id="p-bandera" type="text" placeholder="🇰🇷" oninput="autoHTML()">
+      </div>
+      <hr class="div">
+      <div class="gap">
+        <div class="lbl">Argumento · Filmaffinity</div>
+        <textarea class="inp" id="p-arg" placeholder="Pega la sinopsis aquí…" oninput="autoHTML()"></textarea>
+      </div>
+      <div class="gap">
+        <div class="lbl">Párrafo 1</div>
+        <textarea class="inp tall" id="p-p1" oninput="autoHTML()"></textarea>
+      </div>
+      <div class="gap">
+        <div class="lbl">Párrafo 2</div>
+        <textarea class="inp tall" id="p-p2" oninput="autoHTML()"></textarea>
+      </div>
+      <div class="gap">
+        <div class="lbl">Párrafo 3</div>
+        <textarea class="inp tall" id="p-p3" oninput="autoHTML()"></textarea>
+      </div>
+      <div class="gap">
+        <div class="lbl">Link de descarga</div>
+        <input class="inp" id="p-link" type="url" placeholder="https://drive.google.com/…" oninput="autoHTML()">
+      </div>
+      <button class="btn btn-orange" onclick="activateStep(4)">Ver HTML →</button>
+    </div>
+  </div>
+
+  <!-- STEP 4 -->
+  <div class="step" id="s4">
+    <div class="step-head">
+      <div class="snum">4</div>
+      <div><div class="stitle">HTML para Blogger</div><div class="ssub">Copia y pega en el editor HTML</div></div>
+      <div class="scheck">✅</div>
+    </div>
+    <div class="step-body">
+      <div id="html-box">Completa los pasos anteriores…</div>
+      <button class="btn btn-blue" id="btn-copy" onclick="copiar()">Copiar HTML</button>
+      <div class="st" id="st4" style="text-align:center"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const TMDB_KEY  = (localStorage.getItem('otrapeli_tmdb')||(function(){var k=(prompt('Pega tu TMDB API key (solo la primera vez):')||'').trim();if(k)localStorage.setItem('otrapeli_tmdb',k);return k;})());
+const IMGBB_KEY = (localStorage.getItem('otrapeli_imgbb')||(function(){var k=(prompt('Pega tu ImgBB API key (solo la primera vez):')||'').trim();if(k)localStorage.setItem('otrapeli_imgbb',k);return k;})());
+const TIMG      = 'https://image.tmdb.org/t/p/';
+
+// canvas
+const OW=1001,OH=283,SW=Math.floor(OW/3);
+const STRIPS=[{dx:0,dw:SW},{dx:SW,dw:SW},{dx:SW*2,dw:OW-SW*2}];
+const offsets=[{x:0,y:0},{x:0,y:0},{x:0,y:0}];
+let cImgs=[null,null,null], dragInfo=null;
+
+// state
+let movie=null, selStills=[], posterURL='', sepURL='';
+
+// ── FLAGS ───────────────────────────────────────────────────────────────
+const FLAGS=['🇩🇿','🇦🇷','🇦🇲','🇦🇺','🇦🇹','🇧🇪','🇧🇴','🇧🇷','🇨🇦','🇨🇱','🇨🇳','🇨🇴','🇨🇷','🇨🇺','🇨🇿','🇩🇰','🇪🇬','🇫🇷','🇩🇪','🇬🇷','🇬🇹','🇭🇺','🇮🇳','🇮🇷','🇮🇶','🇮🇱','🇮🇹','🇯🇵','🇯🇴','🇰🇷','🇱🇧','🇲🇦','🇲🇽','🇳🇱','🇳🇴','🇵🇰','🇵🇪','🇵🇱','🇵🇹','🇷🇴','🇷🇺','🇸🇦','🇷🇸','🇿🇦','🇪🇸','🇸🇪','🇨🇭','🇸🇾','🇹🇼','🇹🇭','🇹🇳','🇹🇷','🇺🇦','🇬🇧','🇺🇸','🇺🇾','🇻🇪','🇻🇳','🇾🇪','🇵🇸'];
+(function(){
+  const row=document.getElementById('flag-row');
+  FLAGS.forEach(f=>{
+    const b=document.createElement('button');
+    b.className='fbtn'; b.textContent=f;
+    b.onclick=()=>{
+      document.querySelectorAll('.fbtn').forEach(x=>x.classList.remove('sel'));
+      b.classList.add('sel');
+      document.getElementById('p-bandera').value=f;
+      autoHTML();
+    };
+    row.appendChild(b);
+  });
+})();
+
+// ── STEPS ──────────────────────────────────────────────────────────────
+function activateStep(n){
+  for(let i=1;i<=4;i++){
+    const s=document.getElementById('s'+i);
+    s.classList.remove('active','done');
+    if(i<n) s.classList.add('done');
+  }
+  document.getElementById('s'+n).classList.add('active');
+  setTimeout(()=>document.getElementById('s'+n).scrollIntoView({behavior:'smooth',block:'start'}),80);
+  if(n===4) genHTML();
+}
+
+function st(id,msg,cls=''){
+  const e=document.getElementById(id);
+  e.textContent=msg; e.className='st '+(cls||'');
+}
+
+// ── LIVE SEARCH ────────────────────────────────────────────────────────
+let searchTimer=null;
+const qEl=document.getElementById('q');
+const sugEl=document.getElementById('suggestions');
+const spinner=document.getElementById('spinner');
+
+qEl.addEventListener('input',()=>{
+  clearTimeout(searchTimer);
+  const v=qEl.value.trim();
+  if(v.length<2){ sugEl.classList.remove('open'); return; }
+  spinner.classList.add('on');
+  searchTimer=setTimeout(()=>liveSearch(v), 350);
+});
+
+qEl.addEventListener('blur',()=>{ setTimeout(()=>sugEl.classList.remove('open'),200); });
+qEl.addEventListener('focus',()=>{ if(sugEl.innerHTML&&qEl.value.trim().length>=2) sugEl.classList.add('open'); });
+
+async function liveSearch(q){
+  try{
+    const url=`https://api.themoviedb.org/3/search/movie?api_key=${TMDB_KEY}&query=${encodeURIComponent(q)}&language=es-ES&include_adult=false&page=1`;
+    const d=await(await fetch(url)).json();
+    spinner.classList.remove('on');
+    if(!d.results?.length){
+      sugEl.innerHTML='<div class="sug-empty">Sin resultados. Prueba en inglés.</div>';
+      sugEl.classList.add('open'); return;
+    }
+    renderSuggestions(d.results.slice(0,7));
+  }catch(e){
+    spinner.classList.remove('on');
+    sugEl.innerHTML='<div class="sug-empty">Error de conexión.</div>';
+    sugEl.classList.add('open');
+  }
+}
+
+function renderSuggestions(results){
+  sugEl.innerHTML='';
+  results.forEach(m=>{
+    const year=(m.release_date||'').slice(0,4);
+    const ps=m.poster_path?`<img src="${TIMG+'w92'+m.poster_path}" alt="" onerror="this.style.display='none'">`:`<div style="width:36px;height:52px;background:#222;border-radius:4px;flex-shrink:0"></div>`;
+    const orig=m.original_title&&m.original_title!==m.title?`<br><span style="color:#555;font-size:.65rem">${m.original_title}</span>`:'';
+    const div=document.createElement('div');
+    div.className='sug-item';
+    div.innerHTML=`${ps}<div class="sug-item-info"><div class="sug-title">${m.title||m.original_title}</div><div class="sug-meta">${year}${orig}</div></div>`;
+    div.addEventListener('mousedown',()=>selectMovie(m));
+    div.addEventListener('touchstart',()=>selectMovie(m),{passive:true});
+    sugEl.appendChild(div);
+  });
+  sugEl.classList.add('open');
+}
+
+async function selectMovie(m){
+  sugEl.classList.remove('open');
+  qEl.value=m.title||m.original_title;
+  movie={
+    id:m.id,
+    title:m.title||m.original_title,
+    orig:m.original_title,
+    year:(m.release_date||'').slice(0,4),
+    poster:m.poster_path
+  };
+  posterURL=movie.poster?TIMG+'w500'+movie.poster:'';
+
+  // card
+  const ps=movie.poster?`<img src="${TIMG+'w154'+movie.poster}" alt="">`:'';
+  document.getElementById('selected-card').innerHTML=`
+    <div class="movie-card" onclick="qEl.focus()">
+      ${ps}
+      <div>
+        <div class="mc-title">${movie.title}</div>
+        <div class="mc-meta">${movie.year}${movie.orig&&movie.orig!==movie.title?' · '+movie.orig:''}</div>
+        <div class="mc-change">Toca para cambiar</div>
+      </div>
+    </div>`;
+
+  // Upload poster to ImgBB automatically
+  if(movie.poster){
+    st('st1','Subiendo póster a ImgBB…','info');
+    try{
+      const resp = await fetch(TIMG+'w500'+movie.poster);
+      const blob = await resp.blob();
+      const b64 = await new Promise(res=>{
+        const r=new FileReader(); r.onload=()=>res(r.result.split(',')[1]); r.readAsDataURL(blob);
+      });
+      const fd=new FormData();
+      fd.append('key',IMGBB_KEY); fd.append('image',b64);
+      fd.append('name','poster_'+movie.title.replace(/[^a-zA-Z0-9]/g,'-')+'_'+movie.year);
+      const r=await fetch('https://api.imgbb.com/1/upload',{method:'POST',body:fd});
+      const dj=await r.json();
+      if(dj.success){ posterURL=dj.data.url; st('st1','✅ Póster listo.','ok'); }
+      else { st('st1','Error ImgBB con el póster.','err'); }
+    }catch(e){ st('st1','Error subiendo póster: '+e.message,'err'); }
+  }
+
+  await cargarStills(movie.id);
+  activateStep(2);
+}
+
+// ── STILLS ────────────────────────────────────────────────────────────
+async function cargarStills(id){
+  const d=await(await fetch(`https://api.themoviedb.org/3/movie/${id}/images?api_key=${TMDB_KEY}`)).json();
+  const stills=(d.backdrops||[]).slice(0,30);
+  const grid=document.getElementById('stills-grid');
+  grid.innerHTML=''; selStills=[]; updSel();
+  stills.forEach(s=>{
+    const div=document.createElement('div');
+    div.className='still-item';
+    div.innerHTML=`<img src="${TIMG+'w300'+s.file_path}" loading="lazy" alt=""><div class="badge"></div>`;
+    div.addEventListener('click',()=>toggleStill(div,s.file_path));
+    grid.appendChild(div);
+  });
+}
+
+// Manual still upload
+function subirStillsLocales(input){
+  const files=Array.from(input.files);
+  const grid=document.getElementById('stills-grid');
+  files.forEach(file=>{
+    const url=URL.createObjectURL(file);
+    const div=document.createElement('div');
+    div.className='still-item';
+    div.innerHTML=`<img src="${url}" alt=""><div class="badge"></div>`;
+    // Store blob reference for canvas loading
+    div._blobURL=url;
+    div._isLocal=true;
+    div.addEventListener('click',()=>toggleStill(div,url));
+    // Insert before upload button
+    grid.appendChild(div);
+  });
+  input.value=''; // reset so same file can be re-added
+}
+
+function toggleStill(el,path){
+  const i=selStills.findIndex(s=>s.path===path);
+  if(i>=0){
+    selStills.splice(i,1); el.classList.remove('selected');
+    el.querySelector('.badge').textContent='';
+    selStills.forEach((s,j)=>s.el.querySelector('.badge').textContent=j+1);
+  } else {
+    if(selStills.length>=3){
+      const r=selStills.shift(); r.el.classList.remove('selected');
+      r.el.querySelector('.badge').textContent='';
+      selStills.forEach((s,j)=>s.el.querySelector('.badge').textContent=j+1);
+    }
+    selStills.push({path,el}); el.classList.add('selected');
+    el.querySelector('.badge').textContent=selStills.length;
+  }
+  updSel();
+}
+function updSel(){
+  const n=selStills.length;
+  document.getElementById('sel-count').textContent=n;
+  document.getElementById('btn-gen').disabled=n!==3;
+}
+
+// ── GENERATE + UPLOAD ────────────────────────────────────────────────
+async function generarYSubir(){
+  const btn=document.getElementById('btn-gen');
+  btn.disabled=true; btn.textContent='Generando…';
+  st('st2','Cargando imágenes…','info');
+  offsets.forEach(o=>{o.x=0;o.y=0;});
+  try{
+    cImgs=await Promise.all(selStills.map(s=>{
+      // local stills already have a full URL (blob: or data:)
+      const url = (s.path.startsWith('blob:')||s.path.startsWith('data:')) ? s.path : TIMG+'w780'+s.path;
+      return loadImg(url);
+    }));
+    const c=document.getElementById('sep-canvas');
+    c.style.display='block';
+    document.getElementById('canvas-hint').style.display='block';
+    draw(); c.style.width='100%'; c.style.height='auto';
+    initDrag(c);
+
+    st('st2','Subiendo a ImgBB…','info');
+    btn.textContent='Subiendo ☁…';
+
+    const b64=getDataURL().split(',')[1];
+    const fd=new FormData();
+    fd.append('key',IMGBB_KEY); fd.append('image',b64);
+    if(movie) fd.append('name',`sep_${movie.title.replace(/[^a-zA-Z0-9]/g,'-')}_${movie.year}`);
+    const r=await fetch('https://api.imgbb.com/1/upload',{method:'POST',body:fd});
+    const dj=await r.json();
+    if(!dj.success) throw new Error(dj.error?.message||'Error ImgBB');
+
+    sepURL=dj.data.url;
+    const prev=document.getElementById('sep-preview');
+    prev.src=sepURL; prev.style.display='block';
+    st('st2','✅ Separador subido.','ok');
+    autoHTML();
+    activateStep(3);
+  } catch(e){
+    st('st2','Error: '+e.message,'err');
+    btn.disabled=false;
+  }
+  btn.textContent='Generar separador y subir ☁';
+}
+
+// ── CANVAS ───────────────────────────────────────────────────────────
+function draw(){
+  const c=document.getElementById('sep-canvas');
+  c.width=OW; c.height=OH;
+  const ctx=c.getContext('2d');
+  ctx.fillStyle='#111'; ctx.fillRect(0,0,OW,OH);
+  cImgs.forEach((img,i)=>{if(img){const{dx,dw}=STRIPS[i];crop(ctx,img,dx,0,dw,OH,offsets[i]);}});
+  ctx.fillStyle='rgba(0,0,0,.5)';
+  ctx.fillRect(SW-1,0,2,OH); ctx.fillRect(SW*2-1,0,2,OH);
+}
+function crop(ctx,img,dx,dy,dw,dh,off){
+  const sw=img.naturalWidth,sh=img.naturalHeight,r=dw/dh,sr=sw/sh;
+  let sx,sy,iw,ih;
+  if(sr>r){ih=sh;iw=ih*r;sx=(sw-iw)/2;sy=0;}else{iw=sw;ih=iw/r;sx=0;sy=(sh-ih)/2;}
+  sx+=off.x;sy+=off.y;
+  ctx.drawImage(img,sx,sy,iw,ih,dx,dy,dw,dh);
+}
+function getDataURL(){
+  const src=document.getElementById('sep-canvas');
+  const o=document.createElement('canvas');
+  o.width=OW;o.height=OH;
+  o.getContext('2d').drawImage(src,0,0,OW,OH);
+  return o.toDataURL('image/jpeg',.93);
+}
+function loadImg(url){
+  return new Promise((res,rej)=>{
+    const i=new Image();i.crossOrigin='anonymous';
+    i.onload=()=>res(i);i.onerror=()=>rej(new Error('No cargó'));i.src=url;
+  });
+}
+function initDrag(c){
+  if(c._di)return;c._di=true;
+  const gs=x=>x<SW?0:x<SW*2?1:2;
+  const apply=(cx,cy)=>{
+    const r=c.getBoundingClientRect(),sx=OW/r.width,sy=OH/r.height;
+    const dx=(cx-dragInfo.sx)*sx,dy=(cy-dragInfo.sy)*sy;
+    const img=cImgs[dragInfo.strip],{dw}=STRIPS[dragInfo.strip];
+    const ratio=dw/OH,sr=img.naturalWidth/img.naturalHeight;
+    let iw,ih;
+    if(sr>ratio){ih=img.naturalHeight;iw=ih*ratio;}else{iw=img.naturalWidth;ih=iw/ratio;}
+    const mx=(img.naturalWidth-iw)/2,my=(img.naturalHeight-ih)/2;
+    offsets[dragInfo.strip].x=Math.max(-mx,Math.min(mx,dragInfo.ox-dx));
+    offsets[dragInfo.strip].y=Math.max(-my,Math.min(my,dragInfo.oy-dy));
+    draw();c.style.width='100%';
+  };
+  c.addEventListener('mousedown',e=>{const r=c.getBoundingClientRect(),sx=OW/r.width,cx=(e.clientX-r.left)*sx;dragInfo={strip:gs(cx),sx:e.clientX,sy:e.clientY,ox:offsets[gs(cx)].x,oy:offsets[gs(cx)].y};e.preventDefault();});
+  window.addEventListener('mousemove',e=>{if(dragInfo)apply(e.clientX,e.clientY);});
+  window.addEventListener('mouseup',()=>{dragInfo=null;});
+  c.addEventListener('touchstart',e=>{const t=e.touches[0],r=c.getBoundingClientRect(),sx=OW/r.width,cx=(t.clientX-r.left)*sx;dragInfo={strip:gs(cx),sx:t.clientX,sy:t.clientY,ox:offsets[gs(cx)].x,oy:offsets[gs(cx)].y};e.preventDefault();},{passive:false});
+  window.addEventListener('touchmove',e=>{if(dragInfo){apply(e.touches[0].clientX,e.touches[0].clientY);e.preventDefault();}},{passive:false});
+  window.addEventListener('touchend',()=>{dragInfo=null;});
+}
+
+// ── HTML ─────────────────────────────────────────────────────────────
+function autoHTML(){
+  if(['s4'].some(id=>document.getElementById(id).classList.contains('active')||document.getElementById(id).classList.contains('done'))) genHTML();
+}
+function genHTML(){
+  const titulo=movie?movie.title:'',anio=movie?movie.year:'';
+  const bandera=document.getElementById('p-bandera').value.trim();
+  const arg=document.getElementById('p-arg').value.trim();
+  const p1=document.getElementById('p-p1').value.trim();
+  const p2=document.getElementById('p-p2').value.trim();
+  const p3=document.getElementById('p-p3').value.trim();
+  const link=document.getElementById('p-link').value.trim();
+  const tf=[titulo,anio?`(${anio})`:'',bandera].filter(Boolean).join(' ')||'[TÍTULO]';
+  const pu=posterURL||'[URL_POSTER]',su=sepURL||'[URL_SEPARADOR]',lu=link||'[URL_DESCARGA]';
+  const meta=[bandera,anio].filter(Boolean).join(' · ')||'[BANDERA · AÑO]';
+  const paras=[p1,p2,p3].filter(Boolean).map(p=>`<p>${p}</p>`).join('\n')||'<p>[PÁRRAFO]</p>';
+  document.getElementById('html-box').textContent=
+`<div class="otrapeli-header">
+<div class="otrapeli-poster"><a href="${pu}"><img src="${pu}" alt="${titulo||'[TÍTULO]'}"/></a></div>
+<div class="otrapeli-info">
+<span class="otrapeli-meta">${meta}</span>
+<div class="post-title">${titulo||'[TÍTULO]'}</div>
+<span class="otrapeli-label">Argumento</span>
+<div class="otrapeli-argumento">${arg||'[ARGUMENTO]'}<span class="otrapeli-filmaffinity">— filmaffinity</span></div>
+</div>
+</div>
+<div class="separator" style="text-align: center;"><a href="${su}"><img width="640" src="${su}" alt=""/></a></div>
+<span class="otrapeli-comentario-label">Comentario</span>
+<div class="otrapeli-comentario-block">
+${paras}
+</div>
+<div class="otrapeli-download">
+<a class="otrapeli-download-link" href="${lu}" target="_blank">Descargar película</a>
+</div>`;
+}
+
+async function copiar(){
+  try{
+    await navigator.clipboard.writeText(document.getElementById('html-box').textContent);
+    const b=document.getElementById('btn-copy');
+    b.textContent='✅ Copiado';b.classList.add('copied');
+    st('st4','Pega en Blogger → Nueva entrada → </> HTML','ok');
+    setTimeout(()=>{b.textContent='Copiar HTML';b.classList.remove('copied');},2500);
+  }catch(e){st('st4','Selecciona y copia manualmente.','err');}
+}
+</script>
+</body>
+</html>
