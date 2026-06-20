@@ -452,10 +452,27 @@ async function selectMovie(m){
 
 // ── STILLS ────────────────────────────────────────────────────────────
 async function cargarStills(id){
-  const d=await(await fetch(`https://api.themoviedb.org/3/movie/${id}/images?api_key=${TMDB_KEY}`)).json();
-  const stills=(d.backdrops||[]).slice(0,30);
   const grid=document.getElementById('stills-grid');
   grid.innerHTML=''; selStills=[]; updSel();
+  const url=`https://api.themoviedb.org/3/movie/${id}/images?api_key=${TMDB_KEY}`;
+  let d;
+  for(let attempt=0; attempt<3; attempt++){           // reintenta ante caídas transitorias de TMDB
+    try{ d=await(await fetch(url)).json(); }
+    catch(e){ d={success:false,status_code:-1}; }
+    const transient = d && d.success===false && (d.status_code===43 || d.status_code===-1);
+    if(!transient) break;
+    if(attempt<2) await new Promise(r=>setTimeout(r, 500*(attempt+1)));
+  }
+  const msg='grid-column:1/-1;padding:14px;text-align:center;font-size:.82rem;color:var(--sub)';
+  if(d && d.success===false){                          // TMDB no respondió
+    grid.innerHTML=`<div style="${msg}">TMDB no responde; no se pudieron cargar los stills. Súbelos manualmente abajo o reintenta en unos segundos.</div>`;
+    return;
+  }
+  const stills=(d.backdrops||[]).slice(0,30);
+  if(!stills.length){                                  // respondió, pero la peli no tiene stills
+    grid.innerHTML=`<div style="${msg}">Esta película no tiene stills en TMDB. Súbelos manualmente abajo.</div>`;
+    return;
+  }
   stills.forEach(s=>{
     const div=document.createElement('div');
     div.className='still-item';
