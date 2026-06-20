@@ -31,7 +31,7 @@ body {
 .steps { padding: 14px; display: flex; flex-direction: column; gap: 10px; max-width: 600px; margin: 0 auto; }
 
 .step { background: var(--card); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; }
-.step.active { border-color: var(--accent); }
+.step.active { border-color: var(--accent); overflow: visible; }
 .step.done   { border-color: #2e5230; }
 
 .step-head { display: flex; align-items: center; gap: 12px; padding: 14px 16px; }
@@ -74,7 +74,8 @@ body {
 .suggestions {
   position: absolute; top: calc(100% + 4px); left: 0; right: 0;
   background: #1a1a1a; border: 1px solid #2a2a2a;
-  border-radius: 10px; overflow: hidden;
+  border-radius: 10px; overflow-y: auto; max-height: 60vh;
+  -webkit-overflow-scrolling: touch;
   z-index: 300; box-shadow: 0 8px 32px rgba(0,0,0,.6);
   display: none;
 }
