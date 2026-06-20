@@ -340,6 +340,7 @@ function st(id,msg,cls=''){
 
 // ── LIVE SEARCH ────────────────────────────────────────────────────────
 let searchTimer=null;
+let searchSeq=0;
 const qEl=document.getElementById('q');
 const sugEl=document.getElementById('suggestions');
 const spinner=document.getElementById('spinner');
@@ -355,21 +356,35 @@ qEl.addEventListener('input',()=>{
 qEl.addEventListener('blur',()=>{ setTimeout(()=>sugEl.classList.remove('open'),200); });
 qEl.addEventListener('focus',()=>{ if(sugEl.innerHTML&&qEl.value.trim().length>=2) sugEl.classList.add('open'); });
 
-async function liveSearch(q){
-  try{
-    const url=`https://api.themoviedb.org/3/search/movie?api_key=${TMDB_KEY}&query=${encodeURIComponent(q)}&language=es-ES&include_adult=false&page=1`;
-    const d=await(await fetch(url)).json();
-    spinner.classList.remove('on');
-    if(!d.results?.length){
-      sugEl.innerHTML='<div class="sug-empty">Sin resultados. Prueba en inglés.</div>';
-      sugEl.classList.add('open'); return;
-    }
-    renderSuggestions(d.results.slice(0,7));
-  }catch(e){
-    spinner.classList.remove('on');
-    sugEl.innerHTML='<div class="sug-empty">Error de conexión.</div>';
-    sugEl.classList.add('open');
+// Pide a TMDB con reintento ante errores transitorios (502/backend caído, fallo de red).
+async function tmdbSearch(q){
+  const url=`https://api.themoviedb.org/3/search/movie?api_key=${TMDB_KEY}&query=${encodeURIComponent(q)}&language=es-ES&include_adult=false&page=1`;
+  for(let attempt=0; attempt<3; attempt++){
+    let d;
+    try{ d=await(await fetch(url)).json(); }
+    catch(e){ d={success:false,status_code:-1}; }
+    // status_code 43 = "couldn't connect to backend"; -1 = fallo de red. Ambos transitorios → reintenta.
+    const transient = d && d.success===false && (d.status_code===43 || d.status_code===-1);
+    if(!transient) return d;
+    await new Promise(r=>setTimeout(r, 500*(attempt+1)));
   }
+  return {success:false,status_code:43,gaveup:true};
+}
+
+async function liveSearch(q){
+  const seq=++searchSeq;
+  const d=await tmdbSearch(q);
+  if(seq!==searchSeq) return;            // llegó una búsqueda más nueva → ignora esta (anti race-condition)
+  spinner.classList.remove('on');
+  if(d && d.success===false){            // TMDB no respondió tras los reintentos
+    sugEl.innerHTML='<div class="sug-empty">TMDB no responde ahora mismo. Espera unos segundos y reintenta.</div>';
+    sugEl.classList.add('open'); return;
+  }
+  if(!d.results?.length){                // respondió bien pero no hay coincidencias
+    sugEl.innerHTML='<div class="sug-empty">Sin resultados. Prueba con otro título.</div>';
+    sugEl.classList.add('open'); return;
+  }
+  renderSuggestions(d.results.slice(0,7));
 }
 
 function renderSuggestions(results){
