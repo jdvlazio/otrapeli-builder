@@ -185,6 +185,7 @@ textarea.inp.tall { min-height: 130px; }
 }
 hr.div { border: none; border-top: 1px solid var(--border); margin: 10px 0; }
 </style>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
 
@@ -284,6 +285,8 @@ hr.div { border: none; border-top: 1px solid var(--border); margin: 10px 0; }
     <div class="step-body">
       <div id="html-box">Completa los pasos anteriores…</div>
       <button class="btn btn-blue" id="btn-copy" onclick="copiar()">Copiar HTML</button>
+      <button class="btn btn-orange" id="btn-post" onclick="postearBlogger()" style="margin-top:8px">📤 Postear en Blogger</button>
+      <div class="ssub" id="post-auth" style="text-align:center;margin-top:6px"></div>
       <div class="st" id="st4" style="text-align:center"></div>
     </div>
   </div>
@@ -294,6 +297,10 @@ hr.div { border: none; border-top: 1px solid var(--border); margin: 10px 0; }
 const TMDB_KEY  = (localStorage.getItem('otrapeli_tmdb')||(function(){var k=(prompt('Pega tu TMDB API key (solo la primera vez):')||'').trim();if(k)localStorage.setItem('otrapeli_tmdb',k);return k;})());
 const IMGBB_KEY = (localStorage.getItem('otrapeli_imgbb')||(function(){var k=(prompt('Pega tu ImgBB API key (solo la primera vez):')||'').trim();if(k)localStorage.setItem('otrapeli_imgbb',k);return k;})());
 const TIMG      = 'https://image.tmdb.org/t/p/';
+
+// ── Blogger (publicar directo) ──
+const BLOGGER_BLOG_ID = '2355945169615901504';
+const GOOGLE_CLIENT_ID = '874961732870-kq2s68lp0hqqpe4pc5ngm4um21b0tlcv.apps.googleusercontent.com';
 
 // canvas
 const OW=1001,OH=283,SW=Math.floor(OW/3);
@@ -663,6 +670,111 @@ async function copiar(){
     st('st4','Pega en Blogger → Nueva entrada → </> HTML','ok');
     setTimeout(()=>{b.textContent='Copiar HTML';b.classList.remove('copied');},2500);
   }catch(e){st('st4','Selecciona y copia manualmente.','err');}
+}
+
+// ───────────────────────── POSTEAR EN BLOGGER ─────────────────────────
+let tokenClient=null, accessToken='';
+function ensureTokenClient(){
+  if(tokenClient) return true;
+  if(!window.google || !google.accounts || !google.accounts.oauth2) return false;
+  if(!GOOGLE_CLIENT_ID) return false;
+  tokenClient=google.accounts.oauth2.initTokenClient({
+    client_id:GOOGLE_CLIENT_ID,
+    scope:'https://www.googleapis.com/auth/blogger',
+    callback:()=>{}
+  });
+  return true;
+}
+function getToken(){
+  return new Promise((resolve,reject)=>{
+    if(!GOOGLE_CLIENT_ID){ reject(new Error('Falta configurar el Client ID de Google (OAuth).')); return; }
+    if(!ensureTokenClient()){ reject(new Error('Google aún no cargó; reintenta en unos segundos.')); return; }
+    tokenClient.callback=(resp)=>{
+      if(resp && resp.access_token){ accessToken=resp.access_token; resolve(resp.access_token); }
+      else reject(new Error(resp && resp.error ? resp.error : 'No se obtuvo autorización.'));
+    };
+    try{ tokenClient.requestAccessToken({prompt: accessToken ? '' : 'consent'}); }
+    catch(e){ reject(e); }
+  });
+}
+
+// VERIFICACIÓN 1 — formato exacto. Devuelve lista de problemas (vacía = OK).
+function validarPost(html, bandera){
+  const p=[];
+  if(!movie || !movie.orig) p.push('falta la película (título original)');
+  if(!movie || !/^\d{4}$/.test(movie.year||'')) p.push('año inválido');
+  if(!bandera || !(/[\u{1F1E6}-\u{1F1FF}]{2}/u.test(bandera) || /\p{Extended_Pictographic}/u.test(bandera)))
+    p.push('falta la bandera (emoji del país)');
+  const need=['otrapeli-header','otrapeli-poster','otrapeli-meta','post-title','otrapeli-label',
+    'otrapeli-argumento','otrapeli-filmaffinity','separator','width="640"',
+    'otrapeli-comentario-label','otrapeli-comentario-block','otrapeli-download'];
+  const missing=need.filter(t=>html.indexOf(t)<0);
+  if(missing.length) p.push('estructura incompleta ('+missing.join(', ')+')');
+  const ph=['[TÍTULO]','[ARGUMENTO]','[PÁRRAFO]','[URL_POSTER]','[URL_SEPARADOR]','[URL_DESCARGA]','[BANDERA'];
+  if(ph.some(x=>html.indexOf(x)>=0)) p.push('hay datos sin completar');
+  if(html.indexOf('<p>')<0) p.push('sin párrafos de comentario');
+  if(!/src="https:\/\//.test(html)) p.push('imágenes sin URL válida');
+  return p;
+}
+
+// VERIFICACIÓN 2 — confirmación visual. Resuelve true/false.
+function confirmarModal(title, html){
+  return new Promise(resolve=>{
+    const ov=document.createElement('div');
+    ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
+    const box=document.createElement('div');
+    box.style.cssText='background:#0d0d0d;border:1px solid #333;border-radius:14px;max-width:560px;width:100%;max-height:90vh;overflow:auto;padding:18px';
+    const safe=title.replace(/&/g,'&amp;').replace(/</g,'&lt;');
+    box.innerHTML='<div style="font-size:.8rem;color:#888;margin-bottom:4px">Se publicará con este título (original · año · bandera):</div>'
+      +'<div style="font-size:1.05rem;font-weight:700;color:#fff;margin-bottom:14px">'+safe+'</div>'
+      +'<div style="font-size:.8rem;color:#888;margin-bottom:6px">Vista previa del contenido:</div>';
+    const ifr=document.createElement('iframe');
+    ifr.style.cssText='width:100%;height:300px;border:1px solid #222;border-radius:8px;background:#000';
+    ifr.srcdoc='<style>body{background:#0a0a0a;color:#c8c2b8;font-family:sans-serif;margin:8px;line-height:1.5}img{max-width:100%;height:auto}</style>'+html;
+    box.appendChild(ifr);
+    const row=document.createElement('div');
+    row.style.cssText='display:flex;gap:10px;margin-top:14px';
+    const cancel=document.createElement('button');
+    cancel.className='btn'; cancel.style.cssText='flex:1;background:#252525;color:#ccc'; cancel.textContent='Cancelar';
+    const ok=document.createElement('button');
+    ok.className='btn btn-orange'; ok.style.flex='1'; ok.textContent='Confirmar y publicar';
+    cancel.onclick=()=>{document.body.removeChild(ov);resolve(false);};
+    ok.onclick=()=>{document.body.removeChild(ov);resolve(true);};
+    row.appendChild(cancel); row.appendChild(ok); box.appendChild(row);
+    ov.appendChild(box); document.body.appendChild(ov);
+  });
+}
+
+async function postearBlogger(){
+  genHTML();                                   // HTML siempre fresco
+  const html=document.getElementById('html-box').textContent;
+  const bandera=document.getElementById('p-bandera').value.trim();
+  // ── Verificación 1: formato ──
+  const probs=validarPost(html,bandera);
+  if(probs.length){ st('st4','⚠ No se publicó. Revisa: '+probs.join(' · '),'err'); return; }
+  const title=movie.orig+' ('+movie.year+') '+bandera;   // título Blogger = ORIGINAL (año) bandera
+  // ── Verificación 2: confirmación visual ──
+  const go=await confirmarModal(title, html);
+  if(!go){ st('st4','Publicación cancelada.',''); return; }
+  const btn=document.getElementById('btn-post');
+  btn.disabled=true; btn.textContent='Publicando…';
+  try{
+    const token=await getToken();
+    const res=await fetch('https://www.googleapis.com/blogger/v3/blogs/'+BLOGGER_BLOG_ID+'/posts/',{
+      method:'POST',
+      headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
+      body:JSON.stringify({kind:'blogger#post',blog:{id:BLOGGER_BLOG_ID},title:title,content:html})
+    });
+    const data=await res.json();
+    if(!res.ok) throw new Error((data.error&&data.error.message)||('HTTP '+res.status));
+    st('st4','✅ Publicado correctamente.','ok');
+    document.getElementById('post-auth').innerHTML = data.url
+      ? '<a href="'+data.url+'" target="_blank" style="color:#81c784">Abrir el post publicado ↗</a>' : '';
+  }catch(e){
+    st('st4','❌ No se publicó: '+(e.message||e),'err');
+  }finally{
+    btn.disabled=false; btn.textContent='📤 Postear en Blogger';
+  }
 }
 </script>
 </body>
