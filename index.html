@@ -735,17 +735,20 @@ function validarPost(html, bandera){
   return p;
 }
 
-// VERIFICACIÓN 2 — confirmación visual. Resuelve true/false.
+// VERIFICACIÓN 2 — confirmación con TÍTULO EDITABLE. Resuelve el título final (string) o null si cancela.
 function confirmarModal(title, html){
   return new Promise(resolve=>{
     const ov=document.createElement('div');
     ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
     const box=document.createElement('div');
     box.style.cssText='background:#0d0d0d;border:1px solid #333;border-radius:14px;max-width:560px;width:100%;max-height:90vh;overflow:auto;padding:18px';
-    const safe=title.replace(/&/g,'&amp;').replace(/</g,'&lt;');
-    box.innerHTML='<div style="font-size:.8rem;color:#888;margin-bottom:4px">Se publicará con este título (original · año · bandera):</div>'
-      +'<div style="font-size:1.05rem;font-weight:700;color:#fff;margin-bottom:14px">'+safe+'</div>'
-      +'<div style="font-size:.8rem;color:#888;margin-bottom:6px">Vista previa del contenido:</div>';
+    box.innerHTML='<div style="font-size:.8rem;color:#888;margin-bottom:6px">Título en Blogger — <b style="color:#c8a06a">edítalo</b> si no coincide con el título original de FilmAffinity:</div>';
+    const tin=document.createElement('input');
+    tin.type='text'; tin.value=title;
+    tin.style.cssText='width:100%;background:#111;border:1px solid #2a2a2a;border-radius:8px;color:#fff;font-size:1rem;font-weight:700;padding:11px 12px;font-family:inherit;margin-bottom:14px;box-sizing:border-box';
+    box.appendChild(tin);
+    const pv=document.createElement('div'); pv.style.cssText='font-size:.8rem;color:#888;margin-bottom:6px'; pv.textContent='Vista previa del contenido:';
+    box.appendChild(pv);
     const ifr=document.createElement('iframe');
     ifr.style.cssText='width:100%;height:300px;border:1px solid #222;border-radius:8px;background:#000';
     ifr.srcdoc='<style>body{background:#0a0a0a;color:#c8c2b8;font-family:sans-serif;margin:8px;line-height:1.5}img{max-width:100%;height:auto}</style>'+html;
@@ -756,8 +759,8 @@ function confirmarModal(title, html){
     cancel.className='btn'; cancel.style.cssText='flex:1;background:#252525;color:#ccc'; cancel.textContent='Cancelar';
     const ok=document.createElement('button');
     ok.className='btn btn-orange'; ok.style.flex='1'; ok.textContent='Confirmar y publicar';
-    cancel.onclick=()=>{document.body.removeChild(ov);resolve(false);};
-    ok.onclick=()=>{document.body.removeChild(ov);resolve(true);};
+    cancel.onclick=()=>{document.body.removeChild(ov);resolve(null);};
+    ok.onclick=()=>{const t=tin.value.trim();document.body.removeChild(ov);resolve(t||null);};
     row.appendChild(cancel); row.appendChild(ok); box.appendChild(row);
     ov.appendChild(box); document.body.appendChild(ov);
   });
@@ -770,10 +773,10 @@ async function postearBlogger(){
   // ── Verificación 1: formato ──
   const probs=validarPost(html,bandera);
   if(probs.length){ st('st4','⚠ No se publicó. Revisa: '+probs.join(' · '),'err'); return; }
-  const title=movie.orig+' ('+movie.year+') '+bandera;   // título Blogger = ORIGINAL (año) bandera
-  // ── Verificación 2: confirmación visual ──
-  const go=await confirmarModal(title, html);
-  if(!go){ st('st4','Publicación cancelada.',''); return; }
+  const guess=movie.orig+' ('+movie.year+') '+bandera;   // sugerencia (TMDB); EDITABLE en el modal
+  // ── Verificación 2: confirmación con título editable ──
+  const title=await confirmarModal(guess, html);
+  if(!title){ st('st4','Publicación cancelada.',''); return; }
   const btn=document.getElementById('btn-post');
   btn.disabled=true; btn.textContent='Publicando…';
   try{
