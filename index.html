@@ -328,6 +328,23 @@ const FLAGS=['🇩🇿','🇦🇷','🇦🇲','🇦🇺','🇦🇹','🇧🇪','
   });
 })();
 
+// ── Auto-sugerir bandera(s) del país de producción (TMDB) ──
+function isoToFlag(cc){
+  if(!cc||cc.length!==2) return '';
+  return String.fromCodePoint(...[...cc.toUpperCase()].map(c=>127397+c.charCodeAt(0)));
+}
+async function sugerirBandera(id){
+  try{
+    const r=await fetch('https://api.themoviedb.org/3/movie/'+id+'?api_key='+TMDB_KEY+'&language=es-ES');
+    const d=await r.json();
+    const flags=[...new Set((d.production_countries||[]).map(c=>isoToFlag(c.iso_3166_1)).filter(Boolean))];
+    if(!flags.length) return;
+    document.getElementById('p-bandera').value=flags.join(' ');
+    document.querySelectorAll('.fbtn').forEach(x=>x.classList.toggle('sel', flags.includes(x.textContent)));
+    if(typeof autoHTML==='function') autoHTML();
+  }catch(e){}
+}
+
 // ── STEPS ──────────────────────────────────────────────────────────────
 function activateStep(n){
   for(let i=1;i<=4;i++){
@@ -453,6 +470,7 @@ async function selectMovie(m){
     }catch(e){ st('st1','Error subiendo póster: '+e.message,'err'); }
   }
 
+  sugerirBandera(movie.id);   // auto-sugiere la(s) bandera(s) del país de producción
   await cargarStills(movie.id);
   activateStep(2);
 }
