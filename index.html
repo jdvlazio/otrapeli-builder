@@ -649,7 +649,7 @@ function autoHTML(){
   if(['s4'].some(id=>document.getElementById(id).classList.contains('active')||document.getElementById(id).classList.contains('done'))) genHTML();
 }
 function genHTML(){
-  const titulo=movie?movie.title:'',anio=movie?movie.year:'';
+  const titulo=movie?(movie.orig||movie.title):'',anio=movie?movie.year:'';
   const bandera=document.getElementById('p-bandera').value.trim();
   const arg=document.getElementById('p-arg').value.trim();
   const p1=document.getElementById('p-p1').value.trim();
@@ -768,7 +768,7 @@ function confirmarModal(title, html){
 
 async function postearBlogger(){
   genHTML();                                   // HTML siempre fresco
-  const html=document.getElementById('html-box').textContent;
+  let html=document.getElementById('html-box').textContent;
   const bandera=document.getElementById('p-bandera').value.trim();
   // ── Verificación 1: formato ──
   const probs=validarPost(html,bandera);
@@ -777,6 +777,9 @@ async function postearBlogger(){
   // ── Verificación 2: confirmación con título editable ──
   const title=await confirmarModal(guess, html);
   if(!title){ st('st4','Publicación cancelada.',''); return; }
+  // sincronizar el título DENTRO del contenido con el confirmado (sin el (año)+bandera)
+  const disp=title.replace(/\s*\(\d{4}\).*$/,'').trim().replace(/&/g,'&amp;').replace(/</g,'&lt;');
+  html=html.replace(/(<div class="post-title">)[\s\S]*?(<\/div>)/,'$1'+disp+'$2');
   const btn=document.getElementById('btn-post');
   btn.disabled=true; btn.textContent='Publicando…';
   try{
