@@ -810,17 +810,62 @@ function getMcUrl(){
   if(!u){ u=(prompt('Pega la URL de tu Apps Script de Mailchimp (termina en /exec):')||'').trim(); if(u) localStorage.setItem('otrapeli_mc_url',u); }
   return u;
 }
+var __mcSeq=0;
+function jsonp(u){
+  return new Promise(function(resolve,reject){
+    var cb='__mccb'+(++__mcSeq);
+    var s=document.createElement('script');
+    var to=setTimeout(function(){cleanup();reject(new Error('tiempo agotado'));},60000);
+    function cleanup(){ clearTimeout(to); try{delete window[cb];}catch(e){} if(s.parentNode) s.parentNode.removeChild(s); }
+    window[cb]=function(data){ cleanup(); resolve(data); };
+    s.onerror=function(){ cleanup(); reject(new Error('fallo de red')); };
+    s.src=u+(u.indexOf('?')>=0?'&':'?')+'callback='+cb;
+    document.body.appendChild(s);
+  });
+}
 async function prepararBoletinMailchimp(){
   if(!window.__ultimoPost){ st('st4','Publica el post primero (botón Postear).','err'); return; }
-  var u=getMcUrl(); if(!u){ st('st4','Falta la URL del Apps Script de Mailchimp.','err'); return; }
-  var btn=document.getElementById('btn-boletin');
-  btn.disabled=true; btn.textContent='Preparando…';
+  var base=getMcUrl(); if(!base){ st('st4','Falta la URL del Apps Script de Mailchimp.','err'); return; }
+  var btn=document.getElementById('btn-boletin'); btn.disabled=true; btn.textContent='Preparando…';
   try{
-    await fetch(u,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(window.__ultimoPost)});
-    st('st4','✅ Boletín en preparación. Ábrelo en Mailchimp para revisar y enviar.','ok');
-    document.getElementById('post-auth').innerHTML += ' · <a href="https://us11.admin.mailchimp.com/campaigns/" target="_blank" style="color:#81c784">Abrir Mailchimp ↗</a>';
+    var q=base+'?action=preparar&title='+encodeURIComponent(window.__ultimoPost.title)+'&url='+encodeURIComponent(window.__ultimoPost.url);
+    var d=await jsonp(q);
+    if(!d.ok){ st('st4','Error: '+(d.error||'no se pudo preparar'),'err'); return; }
+    modalBoletin(d.res, base);
+    st('st4','Revisa el boletín y confírmalo abajo.','');
   }catch(e){ st('st4','Error preparando boletín: '+(e.message||e),'err'); }
   finally{ btn.disabled=false; btn.textContent='📧 Preparar boletín'; }
+}
+function modalBoletin(res, base){
+  var ov=document.createElement('div');
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
+  var box=document.createElement('div');
+  box.style.cssText='background:#0d0d0d;border:1px solid #333;border-radius:14px;max-width:600px;width:100%;max-height:92vh;overflow:auto;padding:18px';
+  var subj=(res.subject||'').replace(/&/g,'&amp;').replace(/</g,'&lt;');
+  var tit=(res.title||'').replace(/&/g,'&amp;').replace(/</g,'&lt;');
+  box.innerHTML='<div style="font-size:.8rem;color:#888">Asunto: <b style="color:#c8c2b8">'+subj+'</b></div>'
+    +'<div style="font-size:.8rem;color:#888;margin:2px 0 10px">Película: <b style="color:#c8a06a">'+tit+'</b></div>'
+    +'<div style="font-size:.8rem;color:#888;margin-bottom:6px">Vista previa del correo:</div>';
+  var ifr=document.createElement('iframe');
+  ifr.style.cssText='width:100%;height:340px;border:1px solid #222;border-radius:8px;background:#fff';
+  ifr.srcdoc=res.html;
+  box.appendChild(ifr);
+  var row=document.createElement('div'); row.style.cssText='display:flex;gap:10px;margin-top:14px';
+  var cerrar=document.createElement('button'); cerrar.className='btn'; cerrar.style.cssText='flex:1;background:#252525;color:#ccc'; cerrar.textContent='Cerrar (queda borrador)';
+  var enviar=document.createElement('button'); enviar.className='btn btn-orange'; enviar.style.flex='1.4'; enviar.textContent='📨 Enviar a '+(res.recipients||'la lista')+' suscriptores';
+  cerrar.onclick=function(){ document.body.removeChild(ov); };
+  enviar.onclick=async function(){
+    if(!confirm('¿Enviar el boletín AHORA a '+(res.recipients||'toda la lista')+' suscriptores? No se puede deshacer.')) return;
+    enviar.disabled=true; cerrar.disabled=true; enviar.textContent='Enviando…';
+    try{
+      var d=await jsonp(base+'?action=enviar&id='+encodeURIComponent(res.id));
+      document.body.removeChild(ov);
+      if(d.ok && d.res && d.res.sent){ st('st4','✅ Boletín enviado a la lista.','ok'); }
+      else{ st('st4','No se envió: '+((d.res&&d.res.error)||d.error||'error'),'err'); }
+    }catch(e){ enviar.disabled=false; cerrar.disabled=false; enviar.textContent='📨 Enviar'; st('st4','Error al enviar: '+(e.message||e),'err'); }
+  };
+  row.appendChild(cerrar); row.appendChild(enviar); box.appendChild(row);
+  ov.appendChild(box); document.body.appendChild(ov);
 }
 </script>
 </body>
