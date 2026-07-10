@@ -287,6 +287,7 @@ hr.div { border: none; border-top: 1px solid var(--border); margin: 10px 0; }
       <button class="btn btn-blue" id="btn-copy" onclick="copiar()">Copiar HTML</button>
       <button class="btn btn-orange" id="btn-post" onclick="postearBlogger()" style="margin-top:8px">📤 Postear en Blogger</button>
       <div class="ssub" id="post-auth" style="text-align:center;margin-top:6px"></div>
+      <button class="btn" id="btn-boletin" onclick="prepararBoletinMailchimp()" style="display:none;margin-top:8px;background:#1a3550;color:#7ec8e3">📧 Preparar boletín</button>
       <div class="st" id="st4" style="text-align:center"></div>
     </div>
   </div>
@@ -794,11 +795,32 @@ async function postearBlogger(){
     st('st4','✅ Publicado correctamente.','ok');
     document.getElementById('post-auth').innerHTML = data.url
       ? '<a href="'+data.url+'" target="_blank" style="color:#81c784">Abrir el post publicado ↗</a>' : '';
+    window.__ultimoPost={title:title, url:data.url||''};
+    var bb=document.getElementById('btn-boletin'); if(bb) bb.style.display='block';
   }catch(e){
     st('st4','❌ No se publicó: '+(e.message||e),'err');
   }finally{
     btn.disabled=false; btn.textContent='📤 Postear en Blogger';
   }
+}
+
+// ───────────────────── PREPARAR BOLETÍN (Mailchimp vía Apps Script) ─────────────────────
+function getMcUrl(){
+  var u=localStorage.getItem('otrapeli_mc_url');
+  if(!u){ u=(prompt('Pega la URL de tu Apps Script de Mailchimp (termina en /exec):')||'').trim(); if(u) localStorage.setItem('otrapeli_mc_url',u); }
+  return u;
+}
+async function prepararBoletinMailchimp(){
+  if(!window.__ultimoPost){ st('st4','Publica el post primero (botón Postear).','err'); return; }
+  var u=getMcUrl(); if(!u){ st('st4','Falta la URL del Apps Script de Mailchimp.','err'); return; }
+  var btn=document.getElementById('btn-boletin');
+  btn.disabled=true; btn.textContent='Preparando…';
+  try{
+    await fetch(u,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(window.__ultimoPost)});
+    st('st4','✅ Boletín en preparación. Ábrelo en Mailchimp para revisar y enviar.','ok');
+    document.getElementById('post-auth').innerHTML += ' · <a href="https://us11.admin.mailchimp.com/campaigns/" target="_blank" style="color:#81c784">Abrir Mailchimp ↗</a>';
+  }catch(e){ st('st4','Error preparando boletín: '+(e.message||e),'err'); }
+  finally{ btn.disabled=false; btn.textContent='📧 Preparar boletín'; }
 }
 </script>
 </body>
