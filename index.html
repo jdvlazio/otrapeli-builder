@@ -31,7 +31,8 @@ body {
 .steps { padding: 14px; display: flex; flex-direction: column; gap: 10px; max-width: 600px; margin: 0 auto; }
 
 .step { background: var(--card); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; }
-.step.active { border-color: var(--accent); overflow: visible; }
+.step.active { overflow: visible; }
+.step.active { border-color: var(--accent); }
 .step.done   { border-color: #2e5230; }
 
 .step-head { display: flex; align-items: center; gap: 12px; padding: 14px 16px; }
@@ -229,7 +230,7 @@ hr.div { border: none; border-top: 1px solid var(--border); margin: 10px 0; }
         <input type="file" accept="image/*" multiple style="display:none" onchange="subirStillsLocales(this)">
         ＋ Subir stills manualmente
       </label>
-      <button class="btn btn-orange" id="btn-gen" onclick="generarYSubir()" disabled>Generar separador y subir ☁</button>
+      <button class="btn btn-orange" id="btn-gen" onclick="generarYSubir()" disabled>Generar tríada</button>
       <div class="st" id="st2"></div>
       <canvas id="sep-canvas"></canvas>
       <div class="canvas-hint" id="canvas-hint">Arrastra para reencuadrar</div>
@@ -551,6 +552,14 @@ async function generarYSubir(){
     draw(); c.style.width='100%'; c.style.height='auto';
     initDrag(c);
 
+    // Stills de TMDB: el post enlaza las 3 fotos directo (sin ImgBB). Solo stills locales necesitan subirse.
+    if(!selStills.some(s=>s.path.startsWith('blob:')||s.path.startsWith('data:'))){
+      sepURL='';
+      st('st2','✅ Tríada lista (fotos de TMDB, sin subir nada).','ok');
+      autoHTML(); activateStep(3);
+      btn.disabled=false; btn.textContent='Generar tríada';
+      return;
+    }
     st('st2','Subiendo a ImgBB…','info');
     btn.textContent='Subiendo ☁…';
 
@@ -572,7 +581,23 @@ async function generarYSubir(){
     st('st2','Error: '+e.message,'err');
     btn.disabled=false;
   }
-  btn.textContent='Generar separador y subir ☁';
+  btn.textContent='Generar tríada';
+}
+
+// Tríada como 3 <img> de TMDB; el encuadre arrastrado se guarda como object-position.
+function posPct(i){
+  const img=cImgs[i],{dw}=STRIPS[i],ratio=dw/OH,sr=img.naturalWidth/img.naturalHeight;
+  let iw,ih;
+  if(sr>ratio){ih=img.naturalHeight;iw=ih*ratio;}else{iw=img.naturalWidth;ih=iw/ratio;}
+  const mx=(img.naturalWidth-iw)/2,my=(img.naturalHeight-ih)/2;
+  const pc=(o,m)=>m>0?Math.round(Math.max(0,Math.min(100,50+50*o/m))*10)/10:50;
+  return pc(offsets[i].x,mx)+'% '+pc(offsets[i].y,my)+'%';
+}
+function triadaHTML(){
+  if(sepURL) return `<a href="${sepURL}"><img width="640" src="${sepURL}" alt=""/></a>`;
+  if(selStills.length!==3||cImgs.some(x=>!x)) return '[URL_SEPARADOR]';
+  const imgs=selStills.map((s,i)=>`<img src="${TIMG}w780${s.path}" alt="" style="flex:1 1 0;min-width:0;width:auto;max-width:none;height:100%;object-fit:cover;object-position:${posPct(i)};margin:0 !important;padding:0 !important;border:0;border-radius:0 !important;box-shadow:none !important;display:block">`).join('');
+  return `<div class="otrapeli-triada" style="display:flex;gap:2px;width:100%;aspect-ratio:${OW}/${OH};margin:0 auto;overflow:hidden;background:#111;border-radius:12px">${imgs}</div>`;
 }
 
 // ── CANVAS ───────────────────────────────────────────────────────────
@@ -619,6 +644,7 @@ function initDrag(c){
     offsets[dragInfo.strip].x=Math.max(-mx,Math.min(mx,dragInfo.ox-dx));
     offsets[dragInfo.strip].y=Math.max(-my,Math.min(my,dragInfo.oy-dy));
     draw();c.style.width='100%';
+    autoHTML();
   };
   c.addEventListener('mousedown',e=>{const r=c.getBoundingClientRect(),sx=OW/r.width,cx=(e.clientX-r.left)*sx;dragInfo={strip:gs(cx),sx:e.clientX,sy:e.clientY,ox:offsets[gs(cx)].x,oy:offsets[gs(cx)].y};e.preventDefault();});
   window.addEventListener('mousemove',e=>{if(dragInfo)apply(e.clientX,e.clientY);});
@@ -641,7 +667,7 @@ function genHTML(){
   const p3=document.getElementById('p-p3').value.trim();
   const link=document.getElementById('p-link').value.trim();
   const tf=[titulo,anio?`(${anio})`:'',bandera].filter(Boolean).join(' ')||'[TÍTULO]';
-  const pu=posterURL||'[URL_POSTER]',su=sepURL||'[URL_SEPARADOR]',lu=link||'[URL_DESCARGA]';
+  const pu=posterURL||'[URL_POSTER]',su=triadaHTML(),lu=link||'[URL_DESCARGA]';
   const meta=[bandera,anio].filter(Boolean).join(' · ')||'[BANDERA · AÑO]';
   const paras=[p1,p2,p3].filter(Boolean).map(p=>`<p>${p}</p>`).join('\n')||'<p>[PÁRRAFO]</p>';
   document.getElementById('html-box').textContent=
@@ -654,7 +680,7 @@ function genHTML(){
 <div class="otrapeli-argumento">${arg||'[ARGUMENTO]'}<span class="otrapeli-filmaffinity">— filmaffinity</span></div>
 </div>
 </div>
-<div class="separator" style="text-align: center;"><a href="${su}"><img width="640" src="${su}" alt=""/></a></div>
+<div class="separator" style="text-align: center;">${su}</div>
 <span class="otrapeli-comentario-label">Comentario</span>
 <div class="otrapeli-comentario-block">
 ${paras}
@@ -708,7 +734,7 @@ function validarPost(html, bandera){
   if(!bandera || !(/[\u{1F1E6}-\u{1F1FF}]{2}/u.test(bandera) || /\p{Extended_Pictographic}/u.test(bandera)))
     p.push('falta la bandera (emoji del país)');
   const need=['otrapeli-header','otrapeli-poster','otrapeli-meta','post-title','otrapeli-label',
-    'otrapeli-argumento','otrapeli-filmaffinity','separator','width="640"',
+    'otrapeli-argumento','otrapeli-filmaffinity','separator',
     'otrapeli-comentario-label','otrapeli-comentario-block','otrapeli-download'];
   const missing=need.filter(t=>html.indexOf(t)<0);
   if(missing.length) p.push('estructura incompleta ('+missing.join(', ')+')');
