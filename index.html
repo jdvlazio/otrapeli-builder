@@ -597,7 +597,7 @@ function triadaHTML(){
   if(sepURL) return `<a href="${sepURL}"><img width="640" src="${sepURL}" alt=""/></a>`;
   if(selStills.length!==3||cImgs.some(x=>!x)) return '[URL_SEPARADOR]';
   const imgs=selStills.map((s,i)=>`<img src="${TIMG}w780${s.path}" alt="" style="flex:1 1 0;min-width:0;width:auto;max-width:none;height:100%;object-fit:cover;object-position:${posPct(i)};margin:0 !important;padding:0 !important;border:0;border-radius:0 !important;box-shadow:none !important;display:block">`).join('');
-  return `<div class="otrapeli-triada" style="display:flex;gap:2px;width:100%;aspect-ratio:${OW}/${OH};margin:0 auto;overflow:hidden;background:#111;border-radius:12px">${imgs}</div>`;
+  return `<div class="otrapeli-triada" style="display:flex;gap:2px;width:100%;aspect-ratio:${OW}/${OH};margin:0 auto;overflow:hidden;background:#111;border-radius:12px;margin-bottom:36px">${imgs}</div>`;
 }
 
 // ── CANVAS ───────────────────────────────────────────────────────────
